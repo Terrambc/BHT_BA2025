@@ -186,7 +186,6 @@ class TransformerBlock(nn.Module):
 
 ### 4.6 Erstellung des GPT Models ###
 # Hinweis: Der Transformer Block wird beim kleinsten GPT Model (124M) 12 Mal wiederholt
-
 class GPTModel(nn.Module):
     def __init__(self, cfg):
         super().__init__()
@@ -279,7 +278,7 @@ def main():
     # GPT Model mit 124 Millionen Parameter
     GPT_CONFIG_124M = {
 
-        "vocab_size": 50257,    #  # Vokabelgröße - in dem Fall 50527 Wörter
+        "vocab_size": 50257,    # Anzahl der Tokens - Vokabelgröße 
         "context_length": 1024, # maximale Anzahl von Input Tokens das Model kann händeln via dem Positional Embeddings
         "emb_dim": 768,         # Größe des Embeddings - jeder Token wird in einen 768 dimensionalen Vektor umgewandelt
         "n_heads": 12,          # Anzahl der Attention Heads im Multi-head Attention Mechanismus
