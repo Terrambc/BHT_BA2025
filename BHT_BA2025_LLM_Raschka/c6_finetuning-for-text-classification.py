@@ -201,7 +201,7 @@ def calc_accuracy_loader(data_loader, model, device, num_batches=None):
 # Berechne Batch Verluste 
 def calc_loss_batch(input_batch, target_batch, model, device):
     input_batch, target_batch = input_batch.to(device), target_batch.to(device)
-    logits = model(input_batch)[:, -1, :]  # Logits of last output token
+    logits = model(input_batch)[:, -1, :]  # Logits vom letzten Output Token
     loss = torch.nn.functional.cross_entropy(logits, target_batch)
     return loss
 
