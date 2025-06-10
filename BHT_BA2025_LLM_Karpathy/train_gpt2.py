@@ -10,7 +10,7 @@ from torch.nn import functional as F
 import tiktoken
 import numpy as np
 from transformers import GPT2LMHeadModel
-
+from torch.distributed import init_process_group, destroy_process_group
 
 
 
@@ -233,6 +233,39 @@ class GPT(nn.Module):
 
         return model
 
+
+    # Konfiguration für den Optimizer
+    def configure_optimizers(self, weight_decay, learning_rate, device_type):
+
+        # Startet mit allen Parametern die einen Grad erfordern
+        param_dict = {pn: p for pn, p in self.named_parameters()}
+        param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
+
+        # Erstellt Optim Groups. Bei allen 2D-Parametern wird das Gewicht reduziert, andernfalls nicht.
+        # d. h. alle Gewichtstensoren in Matmuls + Embeddings nehmen ab, alle Biases und Layernorms nicht.
+        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
+        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
+        optim_groups = [
+            {'params': decay_params, 'weight_decay': weight_decay},
+            {'params': nodecay_params, 'weight_decay': 0.0}
+        ]
+        num_decay_params = sum(p.numel() for p in decay_params)
+        num_nodecay_params = sum(p.numel() for p in nodecay_params)
+        print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
+        print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
+
+        # Erstellt den AdamW-Optimierer und verwendet die Fused-Version, falls verfügbar
+        fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
+
+        ''' Hier stand vorher device_type == "cuda" '''
+        use_fused = fused_available and device_type == "cpu"
+        print(f"using fused AdamW: {use_fused}")
+
+        optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)
+        return optimizer
+
+    
+
 # DataLoader Version 1
 class DataLoaderLiteV1:
     def __init__(self, B, T):
@@ -278,7 +311,7 @@ class DataLoaderLite:
         self.num_processes = num_processes
         assert split in {'train', 'val'}
 
-        # Hole die Shard Dateinamen
+        # Hole die Dateinamen der Shards
         data_root = "edu_fineweb10B"
         shards = os.listdir(data_root)
         shards = [s for s in shards if split in s]
@@ -343,24 +376,62 @@ def get_lr(it):
 
 ### Tests und Ausführungen ###
 def main():
-    # Testen welches Gerät man nutzt cuda, mps oder cpu
-    device = "cpu" # Fallcback - jeder hat eine CPU 
-    if torch.cuda.is_available():
-        device = "cuda" # für Nvidia User
-    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        device = "mps" # für Apple Laptops
-    print(f"using device: {device}")
+
+    ''' Wieder eine Optimierung für CUDA '''
+    # Das wird genutzt wenn man mehrere GDUs parallel laufen lässt. 
+    # Setup DDP (Distributed Data Parallel)
+    # torchrun command sets the env variables RANK, LOCAL_RANK, WORLD_SIZE
+    ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
+    if ddp:
+        # use a DDP atm demands CUDA, we set the device appropriately according to rank
+        assert torch.cuda.is_available()
+        init_process_group(backend='nccl')
+        ddp_rank = int(os.environ['RANK'])
+        ddp_local_rank = int(os.environ['LOCAL_RANK'])
+        ddp_world_size = int(os.environ['WORLD_SIZE']) # Anzahl der GPUs
+        device = f'cuda: {ddp_local_rank}'
+        torch.cuda.set_device(device)
+        master_process = ddp_rank == 0 # Dieser Prozess übernimmt das Logging, Checkpointing etc. 
+    else: 
+        # Wenn nur eine CPU oder eine GDU vorhanden ist
+        # kein DDP Run
+        ddp_rank = 0
+        ddp_local_rank = 0
+        ddp_world_size = 1
+        master_process = True
+
+        # Versuch automatisch das Gerät zu finden (Cuda oder CPU)
+        # Testen welches Gerät man nutzt cuda, mps oder cpu
+        device = "cpu" # Fallback - jeder hat eine CPU 
+        if torch.cuda.is_available():
+            device = "cuda" # für Nvidia User
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            device = "mps" # für Apple Laptops
+        print(f"using device: {device}")
 
 
     torch.manual_seed(1337)
     if torch.cuda.is_available():
         torch.cuda.manual_seed(1337)
 
+
+    # Anpassung der Batchsize 
+    '''total_batch_size = 524288 # 2**19, ~0.5M Anzahl von Tokens  <--- Freeze vom System. Vermutlich RAM Overflow'''
+    total_batch_size = 16384
+    B = 16 # Micro Batch Size
+    T = 1024 # Länge der Sequenzen
+    assert total_batch_size % (B * T) == 0 # make sure total_batch_size ist Teilbar durch B * T
+    grad_accum_steps = total_batch_size // (B * T)
+    print(f"total desired batch size: {total_batch_size}")
+    print(f"-> calculated gradient accumulation setps: {grad_accum_steps}")
+
+    train_loader = DataLoaderLiteV1(B=B, T=T)  
+
     # legt die interne Genauigkeit von Float32-Matrixmultiplikationen fest
     torch.set_float32_matmul_precision('high')
 
     # Schrittanzahl
-    max_steps = 50
+    max_steps = 8
     
     # Logits
     model = GPT(GPTConfig(vocab_size=50304))
@@ -369,24 +440,35 @@ def main():
     
     ### Beispiel 3: Dataloader und Trainingsdaten ###
     # Erstellung eines Trainingsdaten Loader
-    train_loader = DataLoaderLiteV1(B=16, T=1024)    
+    # train_loader = DataLoaderLiteV1(B=16, T=1024)    
 
     # Inizialisierung eines Optimizer für die Logits und Loss
     ## SECTION 3: hier wird der Optimizer angepasst auf GPT-3 Parameter - betas , eps
-    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, betas=(0.9, 0.95), eps=1e-8)
+    ''' optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, betas=(0.9, 0.95), eps=1e-8) '''
 
-
+    # Optimierter Optimizer
+    #  Erhöhung der Batchgröße schrittweise linear von einem kleinen Wert (32.000 Token) auf den vollen Wert über die ersten 4-12 Milliarden Token des Trainings
+    # abhängig von der Modelgröße
+    optimizer = model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type='cpu')
 
     for step in range(max_steps):
         t0 = time.time()
-        x, y = train_loader.next_batch()
-        x, y = x.to(device), y.to(device)
         optimizer.zero_grad()
+        loss_accum = 0.0
+        for micro_step in range(grad_accum_steps):
+            x, y = train_loader.next_batch()
+            x, y = x.to(device), y.to(device)
+            ''' with torch.autocast(device_type=device, dtype=torch.bfloat16): <-- kann nicht auf der CPU genutzt werden, sorgt ansonsten für Freeze im System. '''
+            logits, loss = model(x, y) # Logits und Loss von Inputs und Targets
 
-        ''' with torch.autocast(device_type=device, dtype=torch.bfloat16): <-- kann nicht auf der CPU genutzt werden, sorgt ansonsten für Freeze im System. '''
-        logits, loss = model(x, y) # Logits und Loss von Inputs und Targets
+            # Wir müssen den Verlust skalieren, um die Gradientenakkumulation zu berücksichtigen.
+            # weil die Gradienten bei jedem nachfolgenden backwards() einfach addiert werden
+            # Die Addition von Gradienten entspricht einer SUMME im Ziel, aber 
+            # statt einer SUMME wollen wir MITTELWERT. Skalieren Sie den Verlust hier, damit er richtig ausfällt
+            loss = loss / grad_accum_steps
+            loss_accum += loss.detach() 
+            loss.backward()
 
-        loss.backward()
         # Beschneidung der Gradienten bei 1.0
         # Norm Clipping wird eingesetzt, um die Gradients nicht zu groß werden zu lassen 
         norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -400,8 +482,10 @@ def main():
         ''' torch.cuda.synchronize() # wartet auf die GPU, bis sie mit der Arbeit fertig ist '''
         t1 = time.time()
         dt = (t1 - t0) * 1000 # Zeitspanne in Millisekunden
-        tokens_per_sec = (train_loader.B * train_loader.T) / (t1 - t0)
-        print(f"step {step} | loss: {loss.item():.6f} | lr: {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f} ms | token/sec: {tokens_per_sec:.2f}")
+
+        token_processed = train_loader.B * train_loader.T * grad_accum_steps
+        tokens_per_sec = token_processed /  dt
+        print(f"step {step:5d} | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
 
 
 
