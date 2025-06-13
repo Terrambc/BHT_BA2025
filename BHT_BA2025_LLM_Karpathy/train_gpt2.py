@@ -11,6 +11,9 @@ import tiktoken
 import numpy as np
 from transformers import GPT2LMHeadModel
 from torch.distributed import init_process_group, destroy_process_group
+from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
+
 
 
 
@@ -301,8 +304,44 @@ class DataLoaderLiteV1:
         return x, y
 
 
+# DataLoader Version 2: Mit Split von den Daten, damit jede GPU ein eigenes unique Datenset bekommt
+class DataLoaderLiteV2:
+    def __init__(self, B, T, process_rank, num_processes):
+        self.B = B
+        self.T = T
+        self.process_rank = process_rank
+        self.num_processes = num_processes
+
+        # bei Inizialisierung Tokens von der Festplatte in den Speicher laden
+        with open('BHT_BA2025_LLM_Karpathy/input.txt', 'r') as file:
+            text = file.read()
+
+        enc = tiktoken.get_encoding('gpt2')
+        tokens = enc.encode(text)
+        self.tokens = torch.tensor(tokens)
+        print(f"loaded {len(self.tokens)} tokens")
+        print(f"1 epoch = {len(self.tokens) // (B * T)} batches")
+
+        # Status
+        self.current_position = self.B * self.T * self.process_rank
+
+    def next_batch(self):
+        B, T = self.B, self.T
+        buf = self.tokens[self.current_position : self.current_position+B*T+1]
+        x = (buf[:-1]).view(B, T) # Inputs
+        y = (buf[1:]).view(B, T) # Targets
+
+        # Die Positon des Tensors vorrücken
+        self.current_position += B * T * self.num_processes
+
+        # wenn das Laden des nächsten Batch außerhalb der Grenzen liegt, einmal Reseten
+        if self.current_position + (B * T * self.num_processes + 1) > len(self.tokens):
+            self.current_position = self.B * self.T * self.process_rank
+
+        return x, y
+
 '''
-# Inizialisierung eines Data Loaders (Final Version)
+#  Inizialisierung eines Data Loaders (Final Version)
 class DataLoaderLite:
     def __init__(self, B, T, process_rank, num_processes, split):
         self.B = B
@@ -420,24 +459,30 @@ def main():
     total_batch_size = 16384
     B = 16 # Micro Batch Size
     T = 1024 # Länge der Sequenzen
-    assert total_batch_size % (B * T) == 0 # make sure total_batch_size ist Teilbar durch B * T
-    grad_accum_steps = total_batch_size // (B * T)
-    print(f"total desired batch size: {total_batch_size}")
-    print(f"-> calculated gradient accumulation setps: {grad_accum_steps}")
+    assert total_batch_size % (B * T * ddp_world_size) == 0 # make sure total_batch_size ist Teilbar durch B * T
+    grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
+    if master_process: 
+        print(f"total desired batch size: {total_batch_size}")
+        print(f"-> calculated gradient accumulation setps: {grad_accum_steps}")
 
-    train_loader = DataLoaderLiteV1(B=B, T=T)  
+    # Aufteilung der Daten auf die GPUs 
+    train_loader = DataLoaderLiteV2(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size)  
+
+    # Dataloader V1
+    # train_loader = DataLoaderLiteV2(B=B, T=T)
 
     # legt die interne Genauigkeit von Float32-Matrixmultiplikationen fest
     torch.set_float32_matmul_precision('high')
 
-    # Schrittanzahl
-    max_steps = 8
-    
-    # Logits
+       
+    # Logits | Erzeuge ein Model
     model = GPT(GPTConfig(vocab_size=50304))
     model.to(device)
     ''' model = torch.compile(model) <-- kann auf der CPU nur mit einer C++ Entwicklungsumgebung genutzt werden. Ist ansonsten für CUDA'''
-    
+    if ddp:
+        model = DDP(model, device_ids=[ddp_local_rank]) # wrap the model in den DDP Container
+    raw_model = model.module if ddp else model # enthält immer das "raw" unwrapped model
+
     ### Beispiel 3: Dataloader und Trainingsdaten ###
     # Erstellung eines Trainingsdaten Loader
     # train_loader = DataLoaderLiteV1(B=16, T=1024)    
@@ -446,10 +491,13 @@ def main():
     ## SECTION 3: hier wird der Optimizer angepasst auf GPT-3 Parameter - betas , eps
     ''' optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, betas=(0.9, 0.95), eps=1e-8) '''
 
+    # Schrittanzahl
+    max_steps = 2
+
     # Optimierter Optimizer
     #  Erhöhung der Batchgröße schrittweise linear von einem kleinen Wert (32.000 Token) auf den vollen Wert über die ersten 4-12 Milliarden Token des Trainings
     # abhängig von der Modelgröße
-    optimizer = model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type='cpu')
+    optimizer = raw_model.configure_optimizers(weight_decay=0.1, learning_rate=6e-4, device_type='cpu')
 
     for step in range(max_steps):
         t0 = time.time()
@@ -467,7 +515,11 @@ def main():
             # statt einer SUMME wollen wir MITTELWERT. Skalieren Sie den Verlust hier, damit er richtig ausfällt
             loss = loss / grad_accum_steps
             loss_accum += loss.detach() 
+            if ddp:
+                model.requires_backward_grad_sync = (micro_step == grad_accum_steps - 1)
             loss.backward()
+        if ddp:
+            dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
 
         # Beschneidung der Gradienten bei 1.0
         # Norm Clipping wird eingesetzt, um die Gradients nicht zu groß werden zu lassen 
@@ -481,13 +533,15 @@ def main():
         optimizer.step()
         ''' torch.cuda.synchronize() # wartet auf die GPU, bis sie mit der Arbeit fertig ist '''
         t1 = time.time()
-        dt = (t1 - t0) * 1000 # Zeitspanne in Millisekunden
+        dt = (t1 - t0) # Zeitspanne in Sekunden
 
-        token_processed = train_loader.B * train_loader.T * grad_accum_steps
+        token_processed = train_loader.B * train_loader.T * grad_accum_steps * ddp_world_size
         tokens_per_sec = token_processed /  dt
-        print(f"step {step:5d} | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
+        if master_process:
+            print(f"step {step:5d} | loss: {loss_accum.item():.6f} | lr {lr:.4e} | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
 
-
+    if ddp:
+        destroy_process_group()
 
     import sys; sys.exit(0)
     # ---------------------------------------------------------------------------------- #
