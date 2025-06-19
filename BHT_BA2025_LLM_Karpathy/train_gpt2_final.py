@@ -410,7 +410,7 @@ def main():
     # legt die interne Genauigkeit von Float32-Matrixmultiplikationen fest
     torch.set_float32_matmul_precision('high')
 
-    # Erzeugt das Model
+    # Erzeugt das Model - mit "hübschen Zahlen"
     model = GPT(GPTConfig(vocab_size=50304))
 
     # model = GPT.from_pretrained("gpt2") or init from OpenAI GPT-2
