@@ -9,6 +9,9 @@ from torch.nn import functional as F
 from hellaswag import render_example, iterate_examples
 import tiktoken
 import numpy as np
+from torch.distributed import init_process_group, destroy_process_group
+from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
 
 #------------------------------------------------------#
 ### Klassen und Funktionen  ###
@@ -32,6 +35,10 @@ class CausalSelfAttention(nn.Module):
         # Regularisierung > einer Gruppe von Methoden beim maschinellen Lernen zur Vermeidung von Überanpassung
         self.n_head = config.n_head
         self.n_embd = config.n_embd
+
+        #self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))).view(1, 1, config.block_size, config.block_size )
+        bias = torch.tril(torch.ones(config.block_size, config.block_size)).view(1, 1, config.block_size, config.block_size)
+        self.register_buffer("bias", bias)
 
     def forward(self, x):
         B, T, C = x.size() # batch size, sequenze length, embedding dimensionality (n_embd)
@@ -235,7 +242,7 @@ class GPT(nn.Module):
         return model
 
     # Konfiguration für den Optimize
-    def configure_optimizers(self, weight_decay, learning_rate, device_type):
+    def configure_optimizers(self, weight_decay, learning_rate, device_type, master_process=False):
 
         # Startet mit allen Parametern die einen Grad erfordern
         param_dict = {pn: p for pn, p in self.named_parameters()}
@@ -275,7 +282,7 @@ def load_tokens(filename):
 #-----------------------------------------------------------------------------
 #  Inizialisierung eines Data Loaders (Final Version)
 class DataLoaderLite:
-    def __init__(self, B, T, process_rank, num_processes, split):
+    def __init__(self, B, T, process_rank, num_processes, split, master_process=False):
         self.B = B
         self.T = T
         self.process_rank = process_rank
@@ -283,7 +290,7 @@ class DataLoaderLite:
         assert split in {'train', 'val'}
 
         # Hole die Dateinamen der Shards
-        data_root = "edu_fineweb10B"
+        data_root = "BHT_BA2025_LLM_Karpathy/edu_fineweb10B"
         shards = os.listdir(data_root)
         shards = [s for s in shards if split in s]
         shards = sorted(shards)
@@ -344,10 +351,6 @@ def get_most_likely_row(tokens, mask, logits):
 ### Tests und Ausführungen ###
 def main():
     # Ausführung der Trainingsschleife
-    from torch.distributed import init_process_group, destroy_process_group
-    from torch.nn.parallel import DistributedDataParallel as DDP
-    import torch.distributed as dist
-
     ''' Wieder eine Optimierung für CUDA '''
     # Das wird genutzt wenn man mehrere GDUs parallel laufen lässt. 
     # Setup DDP (Distributed Data Parallel)
@@ -392,8 +395,8 @@ def main():
     # Anpassung der Batchsize 
     '''total_batch_size = 524288 # 2**19, ~0.5M Anzahl von Tokens  <--- Freeze vom System. Vermutlich RAM Overflow'''
     total_batch_size = 16384 # läuft gerade noch mit meinem System
-    B = 64 # Micro Batch Size
-    T = 1024 # Länge der Sequenzen
+    B = 16 # Micro Batch Size - orginal eingestellt 64
+    T = 1024 # Länge der Sequenzen - original eingestellt 1024
     assert total_batch_size % (B * T * ddp_world_size) == 0  # make sure total_batch_size ist Teilbar durch B * T
     grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
     if master_process:
