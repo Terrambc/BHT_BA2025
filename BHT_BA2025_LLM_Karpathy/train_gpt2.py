@@ -340,10 +340,18 @@ class DataLoaderLiteV2:
 
         return x, y
 
-'''
+
+# Laden der Tokens aus edufineweb Ordner
+def load_tokens(filename):
+    npt = np.load(filename)
+    ptt = torch.tensor(npt, dtype=torch.long)
+
+    return ptt
+
+
 #  Inizialisierung eines Data Loaders (Final Version)
 class DataLoaderLite:
-    def __init__(self, B, T, process_rank, num_processes, split):
+    def __init__(self, B, T, process_rank, num_processes, split, master_process=False):
         self.B = B
         self.T = T
         self.process_rank = process_rank
@@ -351,15 +359,17 @@ class DataLoaderLite:
         assert split in {'train', 'val'}
 
         # Hole die Dateinamen der Shards
-        data_root = "edu_fineweb10B"
+        data_root = 'BHT_BA2025_LLM_Karpathy/edu_fineweb10B'
         shards = os.listdir(data_root)
         shards = [s for s in shards if split in s]
         shards = sorted(shards)
         shards = [os.path.join(data_root, s) for s in shards]
         self.shards = shards
         assert len(shards) > 0, f"no shards found for split {split}"
+
         if master_process:
             print(f"found {len(shards)} shards for split {split}")
+        
         self.reset()
 
     def reset(self):
@@ -382,33 +392,6 @@ class DataLoaderLite:
             self.tokens = load_tokens(self.shards[self.current_shard])
             self.current_position = B * T * self.process_rank
         return x, y
-'''
-
-
-
-### FUNKTIONEN  ###
-# Funktionsparameter etwas abgewandelt, damit die Funktion nicht in der Mainfunktion steht, sondern extra (Abweichung von Video)
-def get_lr(it):
-    # variablen
-    max_lr = 6e-4
-    min_lr =  max_lr * 0.1
-    warmup_steps = 10
-    max_steps = 50
-
-    # 1) linear warmup for warmup_iters steps
-    if it < warmup_steps:
-        return max_lr * (it+1) / warmup_steps
-    
-    # 2) it > lr_decay_iters, return min learning rate
-    if it > max_steps:
-        return min_lr
-
-    # 3) Kosinusabfall bis zur minimalen Lernrate verwenden
-    decay_ratio = (it - warmup_steps) / (max_steps - warmup_steps)
-    assert 0 <= decay_ratio <= 1
-    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff startet mit 1 und geht dann gegen 0
-    return min_lr + coeff * (max_lr - min_lr)
-
 
 
 
@@ -454,6 +437,7 @@ def main():
         torch.cuda.manual_seed(1337)
 
 
+
     # Anpassung der Batchsize 
     '''total_batch_size = 524288 # 2**19, ~0.5M Anzahl von Tokens  <--- Freeze vom System. Vermutlich RAM Overflow'''
     total_batch_size = 16384
@@ -465,8 +449,15 @@ def main():
         print(f"total desired batch size: {total_batch_size}")
         print(f"-> calculated gradient accumulation setps: {grad_accum_steps}")
 
+
+    # Neuer Datensatz von Huggingface 
+    train_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size, split='train', master_process=master_process)  
+    val_loader = DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size, split='val', master_process=master_process)  
+    #test_loader =DataLoaderLite(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size, split='train', master_process=master_process)  
+
+
     # Aufteilung der Daten auf die GPUs 
-    train_loader = DataLoaderLiteV2(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size)  
+    # train_loader = DataLoaderLiteV2(B=B, T=T, process_rank=ddp_rank, num_processes=ddp_world_size)  
 
     # Dataloader V1
     # train_loader = DataLoaderLiteV2(B=B, T=T)
@@ -482,6 +473,38 @@ def main():
     if ddp:
         model = DDP(model, device_ids=[ddp_local_rank]) # wrap the model in den DDP Container
     raw_model = model.module if ddp else model # enthält immer das "raw" unwrapped model
+
+    '''
+    # Einstellungen für Shakespear
+    max_lr = 6e-4
+    min_lr =  max_lr * 0.1
+    warmup_steps = 10
+    max_steps = 50
+    '''
+
+    # Neue Einstellungen für edufineweb
+    max_lr = 6e-4
+    min_lr =  max_lr * 0.1
+    warmup_steps = 715
+    max_steps = 19073
+
+    # Funktion für die Lernrate
+    def get_lr(it):
+
+        # 1) linear warmup for warmup_iters steps
+        if it < warmup_steps:
+            return max_lr * (it+1) / warmup_steps
+        
+        # 2) it > lr_decay_iters, return min learning rate
+        if it > max_steps:
+            return min_lr
+
+        # 3) Kosinusabfall bis zur minimalen Lernrate verwenden
+        decay_ratio = (it - warmup_steps) / (max_steps - warmup_steps)
+        assert 0 <= decay_ratio <= 1
+        coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff startet mit 1 und geht dann gegen 0
+        return min_lr + coeff * (max_lr - min_lr)
+
 
     ### Beispiel 3: Dataloader und Trainingsdaten ###
     # Erstellung eines Trainingsdaten Loader
@@ -501,6 +524,30 @@ def main():
 
     for step in range(max_steps):
         t0 = time.time()
+
+        # Zwichendurch evaluiere unsere Valdiation Verlust
+        if step % 100 == 0:
+            model.eval()
+            val_loader.reset()
+            with torch.no_grad():
+                val_loss_accum = 0.0
+                val_loss_steps = 20
+                for _ in range (val_loss_steps):
+                    x, y = val_loader.next_batch()
+                    x, y = x.to(device), y.to(device)
+                    '''with torch.autocast(device_type=device, dtype=torch.bfloat16): '''
+                    logits, loss = model(x, y)
+                    loss = loss / val_loss_steps
+                    val_loss_accum += loss.detach()
+            
+            if ddp:
+                dist.all_reduce(val_loss_accumm, op=dist.ReduceOp.AVG)
+            if master_process:
+                print(f"validation loss: {val_loss_accum.item():.4f}")
+
+
+        # Trainingsschleife
+        model.train()
         optimizer.zero_grad()
         loss_accum = 0.0
         for micro_step in range(grad_accum_steps):
@@ -607,7 +654,7 @@ def main():
             # Holt die Wahrscheinlichkeiten
             probs = F.softmax(logits, dim=-1)
 
-            # Gebe die 50 top-k Beispiele (huggingface pipeline default) wieder
+            # Gibt die 50 top-k Beispiele (huggingface pipeline default) wieder
             # topk_probs bekommt hier (5 ,50), topk_indicies sind (5, 50)
             topk_probs, topk_indicies = torch.topk(probs, 50, dim=-1)
 
