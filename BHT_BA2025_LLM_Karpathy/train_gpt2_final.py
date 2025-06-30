@@ -394,8 +394,8 @@ def main():
 
     # Anpassung der Batchsize 
     '''total_batch_size = 524288 # 2**19, ~0.5M Anzahl von Tokens  <--- Freeze vom System. Vermutlich RAM Overflow'''
-    total_batch_size = 16384 # läuft gerade noch mit meinem System
-    B = 16 # Micro Batch Size - orginal eingestellt 64
+    total_batch_size = 8192 # läuft gerade noch mit meinem System 16384
+    B = 8 # Micro Batch Size - orginal eingestellt 64
     T = 1024 # Länge der Sequenzen - original eingestellt 1024
     assert total_batch_size % (B * T * ddp_world_size) == 0  # make sure total_batch_size ist Teilbar durch B * T
     grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
