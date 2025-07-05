@@ -139,7 +139,8 @@ class DataLoaderLite:
         self.B = B
         self.T = T
         assert split in {'train', 'val'}
-        data_root = "BHT_BA2025_LLM_Karpathy/edu_fineweb10B"
+        # data_root = "BHT_BA2025_LLM_Karpathy/edu_fineweb10B"
+        data_root = "BHT_BA2025_LLM_Karpathy/tinystory_npy_vergleichbar"
         shards = os.listdir(data_root)
         shards = [s for s in shards if split in s]
         shards = sorted(shards)
