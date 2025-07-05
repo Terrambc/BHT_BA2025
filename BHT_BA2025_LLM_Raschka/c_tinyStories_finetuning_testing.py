@@ -20,13 +20,20 @@ from c7_finetuning_follow_instruction_model import custom_collate_fn
 class TinyStoriesDataset(Dataset):
     def __init__(self, data, tokenizer, max_length=1024, text_key="story"):
         self.encoded_texts = []
+        self.tokens = []
         for entry in data:
             if isinstance(entry, dict) and text_key in entry:
                 text = entry[text_key]
                 tokens = tokenizer.encode(text)
+                self.tokens.append(tokens)
                 if 0 < len(tokens) <= max_length:
                     self.encoded_texts.append(tokens)
+        total_tokens = sum(len(toks) for toks in self.tokens)
+        avg_tokens = total_tokens / len(self.tokens) if self.tokens else 0
         print(f"TinyStoriesDataset: {len(self.encoded_texts)} gültige Einträge geladen.")
+        print(f"TinyStories Gesamtanzahl Tokens: {total_tokens}")
+        print(f"Durchschnittliche Tokenanzahl pro Eintrag: {avg_tokens:.2f}")
+        
 
     def __getitem__(self, idx):
         return self.encoded_texts[idx]
@@ -120,6 +127,8 @@ def train_model_with_wandb(
                     train_loss = calc_loss_loader(train_loader, model, device, num_batches=eval_iter)
                     val_loss   = calc_loss_loader(val_loader, model, device, num_batches=eval_iter)
                     val_perplexity = torch.exp(torch.tensor(val_loss)).item() if val_loss < 20 else float('inf')
+                    train_perplexity = torch.exp(torch.tensor(train_loss)).item() if train_loss < 20 else float('inf')
+                    
                     # Accuracy auf Validation
                     acc_sum, acc_count = 0.0, 0
                     for i, (val_inputs, val_targets) in enumerate(val_loader):
@@ -129,6 +138,17 @@ def train_model_with_wandb(
                         acc_sum += acc
                         acc_count += 1
                     val_acc = acc_sum / acc_count if acc_count > 0 else 0.0
+
+                    # Accuracy auf Training
+                    acc_sum2, acc_count2 = 0.0, 0
+                    for i, (train_inputs, train_targets) in enumerate(train_loader):
+                        if i >= eval_iter: break
+                        train_logits = model(train_inputs.to(device))
+                        acc = calculate_accuracy(train_logits, train_targets.to(device))
+                        acc_sum2 += acc
+                        acc_count2 += 1
+                    train_acc = acc_sum2 / acc_count2 if acc_count2 > 0 else 0.0
+
                 model.train()
 
                 batch_size = input_batch.size(0)
@@ -143,26 +163,23 @@ def train_model_with_wandb(
 
                 print(f"Ep {epoch+1} (Step {global_step:06d}): "
                       f"Train loss {train_loss:.3f}, Val loss {val_loss:.3f}, "
-                      f"Val pplx {val_perplexity:.3f}, Acc {val_acc:.3f}")
+                      f"Val pplx {val_perplexity:.3f}, Val_Acc {val_acc:.3f}, "
+                      f"train pplx {train_perplexity:.3f}, Train_Acc {train_acc:.3f}")
 
                 wandb.log({
                     "step": global_step,
                     "train_loss": train_loss,
                     "val_loss": val_loss,
+                    "train_perplexity": train_perplexity, 
                     "val_perplexity": val_perplexity,
+                    "train_accuracy": train_acc,
                     "val_accuracy": val_acc,
                     "batch_size": batch_size,
                     "throughput_tokens_per_sec": throughput,
                     "memory_usage_MB": memory_usage,
                 })
 
-                # Speichere bestes Modell als Artefakt
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    torch.save(model.state_dict(), best_model_path)
-                    artifact = wandb.Artifact('best-model', type='model')
-                    artifact.add_file(best_model_path)
-                    wandb.log_artifact(artifact)
+
         # Nach jeder Epoche: Beispielgenerierung
         generate_and_print_sample(model, tokenizer, device, start_context)
 
@@ -175,11 +192,11 @@ def main():
     # ---- PARAMETER ANPASSEN ----
     data_dir = "test_test"  # Ordner mit deinen .json-Dateien
     batch_size = 8
-    total_epochs = 3
+    total_epochs = 1
     eval_freq = 10
     eval_iter = 5
-    max_files = 1   # Für schnellen Test: z.B. 1
-    max_entries = 10000 # Für schnellen Test: z.B. 100
+    max_files = 4   # Für schnellen Test: z.B. 1
+    max_entries = 40000 # Für schnellen Test: z.B. 100
 
     BASE_CONFIG = {
         "vocab_size": 50257,     # Vokabelgröße
@@ -195,7 +212,7 @@ def main():
         "gpt2-xl (1558M)": {"emb_dim": 1600, "n_layers": 48, "n_heads": 25},
     }
 
-    CHOOSE_MODEL = "gpt2-medium (355M)"
+    CHOOSE_MODEL = "gpt2-small (124M)"
 
     BASE_CONFIG.update(model_configs[CHOOSE_MODEL])
 
@@ -225,6 +242,8 @@ def main():
     val_dataset   = TinyStoriesDataset(val_data, tokenizer)
     test_dataset  = TinyStoriesDataset(test_data, tokenizer)
 
+    import sys; sys.exit(0)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
 
@@ -253,8 +272,8 @@ def main():
         eval_iter=eval_iter,
         start_context=start_context,
         tokenizer=tokenizer,
-        project_name="BHT_Benchmark",
-        run_name="Raschka-tinystories_cpu"
+        project_name="BHT_Benchmark_2025",
+        run_name="Raschka_CPU_GPT_small"
     )
 
     # ---- Optional: MINIMALISTISCHES TRAINING OHNE LOGGING ----
