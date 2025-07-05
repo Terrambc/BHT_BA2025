@@ -76,8 +76,9 @@ class DummyLayerNorm(nn.Module):
 class LayerNorm(nn.Module):
     def __init__(self, emb_dim):
         super().__init__()
-        # Durch den Wert eps wird ein Divisionsfehlder durch Null vermieden. 
-        self.eps = 1e-5
+        # Durch den Wert eps wird ein Divisionsfehlder durch Null vermieden.
+        # Er wird bei norm_x mit angehangen damit nicht 0/0 zum Fehler führt. 
+        self.eps = 1e-5 # 0.001
 
         # zwei trainierbare Parameter scale und shift
         self.scale = nn.Parameter(torch.ones(emb_dim))
@@ -161,25 +162,27 @@ class TransformerBlock(nn.Module):
             num_heads=cfg["n_heads"], 
             dropout=cfg["drop_rate"],
             qkv_bias=cfg["qkv_bias"])
-        self.ff = FeedForward(cfg)
-        self.norm1 = LayerNorm(cfg["emb_dim"])
-        self.norm2 = LayerNorm(cfg["emb_dim"])
+        self.ff = FeedForward(cfg) # FeedFoward Modul Aufruf
+        self.norm1 = LayerNorm(cfg["emb_dim"]) # LayerNorm Modul Aufruf
+        self.norm2 = LayerNorm(cfg["emb_dim"]) # LayerNorm Modul Aufruf
         self.drop_shortcut = nn.Dropout(cfg["drop_rate"])
 
     def forward(self, x):
         # Shortcut Connection für Attention Block
+        # Aufbau wie in der Abbildung vom Transformer Block: LayerNorm1 -> Masked Multi-head Attention -> Dropout -> hinzufügen des Shortcuts (x)
         shortcut = x
         x = self.norm1(x)
         x = self.att(x)  # Shape [batch_size, num_tokens, emb_size]
         x = self.drop_shortcut(x)
-        x = x + shortcut  # fügt den original Input wieder hinzu
+        x = x + shortcut  # fügt den original Input wieder hinzu (Shortcut)
 
         # Shortcut Connection für  Feed Forward Block
+        # Aufbau wie in der Abbildung vom Transformer Block: LayerNomr 2 -> Feed Forward -> Dropout -> hinzufügen des Shortcuts (x)
         shortcut = x
         x = self.norm2(x)
         x = self.ff(x)
         x = self.drop_shortcut(x)
-        x = x + shortcut  # fügt den original Input wieder hinzu
+        x = x + shortcut  # fügt den original Input wieder hinzu (Shortcut)
 
         return x
 
@@ -193,9 +196,11 @@ class GPTModel(nn.Module):
         self.pos_emb = nn.Embedding(cfg["context_length"], cfg["emb_dim"])
         self.drop_emb = nn.Dropout(cfg["drop_rate"])
         
+        # Aufruf des TransformerBlock Moduls
         self.trf_blocks = nn.Sequential(
             *[TransformerBlock(cfg) for _ in range(cfg["n_layers"])])
         
+        # Aufruf des LayerNorm Moduls
         self.final_norm = LayerNorm(cfg["emb_dim"])
         self.out_head = nn.Linear(
             cfg["emb_dim"], cfg["vocab_size"], bias=False
@@ -246,16 +251,18 @@ def generate_text_simple(model, idx, max_new_tokens, context_size):
     for _ in range(max_new_tokens):
         
         # Schneidet den Kontex ab, wenn die unterstützte Kontextgröße (context_size) überschritten wird
+        # Beim kleinen Model wären es dann 1024 Tokens
         idx_cond = idx[:, -context_size:]
         
         # Holen der Vorhersage
         with torch.no_grad():
             logits = model(idx_cond)
         
-        # Konzentriert sich nur auf den letzten time step -> damit wird (batch, n_token, vocab_size) zu (batch, vocab_size)
+        # Konzentriert sich nur auf den letzten Linear Layer Output -> damit wird (batch, n_token, vocab_size) zu (batch, vocab_size)
+        # Letzte Reihe 
         logits = logits[:, -1, :]  
 
-        # Anwendung von Softmax Funktion um die Wahrscheinlichkeiten zu erhalten to get probabilities
+        # Anwendung von Softmax Funktion um die Wahrscheinlichkeiten zu erhalten 
         probas = torch.softmax(logits, dim=-1)  # (batch, vocab_size)
 
         # Holen des idx vom Vokalbeleintrag mit dem höchsten Wahrscheinlichkeitswert
