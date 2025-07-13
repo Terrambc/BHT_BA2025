@@ -39,6 +39,23 @@ def main():
 
     wandb.init(project="BHT_Benchmark_2025", name="Karpathy_CPU_GPT_small")
 
+    wandb.config.update({
+    "total_batch_size": total_batch_size,
+    "B": B,
+    "T": T,
+    "grad_accum_steps": grad_accum_steps,
+    "max_lr": max_lr,
+    "min_lr": min_lr,
+    "warmup_steps": warmup_steps,
+    "max_steps": max_steps,
+    "weight_decay": 0.1,
+    "vocab_size": config.vocab_size,
+    "block_size": config.block_size,
+    "n_layer": config.n_layer,
+    "n_head": config.n_head,
+    "n_embd": config.n_embd,
+    })
+
     config = GPTConfig(
         vocab_size=50257,
         block_size=1024, 
@@ -53,8 +70,9 @@ def main():
     max_lr = 6e-4
     min_lr = max_lr * 0.1
     warmup_steps = 20
-    max_steps = 788 # Schritte für 1 Epoche (steps_per_epoch): 788 - errechnet in c_convert_TinyStories_npy_gleicherSatz
-
+    # max_steps = 788 # Schritte für 1 Epoche (steps_per_epoch): 788 - errechnet in c_convert_TinyStories_npy_gleicherSatz
+    max_steps = 849 # zweiter Versuch. Laut WandB.ai hat ein Epoch von Raschka nur 424 Schritte
+    
     def get_lr(it):
         if it < warmup_steps:
             return max_lr * (it + 1) / warmup_steps
@@ -105,7 +123,7 @@ def main():
                            for x, y in [val_loader.next_batch()]) / 2
 
         val_ppl = math.exp(val_loss) if val_loss < 20 else float('inf')
-        train_ppl = math.exp(train_loss) if train_loss < 20 else float('inf')
+        train_ppl = math.exp(loss_accum.item()) if loss_accum.item() < 20 else float('inf')
         mlm_loss, val_acc = evaluate_mlm(model, val_loader, device, num_batches=1)
         mlm_loss, train_acc = evaluate_mlm(model, train_loader, device, num_batches=1)
 
@@ -122,14 +140,14 @@ def main():
             "memory_usage_MB": memory_usage,
         })
 
-        print(f"Step {step:4d} | Train Loss: {loss_accum.item():.4f} | Val Loss: {val_loss:.4f} | Train PPL: {train_ppl:.2f} | Val PPL: {val_ppl:.2f} | Train Acc: {val_acc:.4f} | Val Acc: {val_acc:.4f} | {tokens_per_sec:.1f} tok/s | Mem: {memory_usage:.1f} MB")
+        print(f"Step {step:4d} | Train Loss: {loss_accum.item():.4f} | Val Loss: {val_loss:.4f} | Train PPL: {train_ppl:.2f} | Val PPL: {val_ppl:.2f} | Train Acc: {train_acc:.4f} | Val Acc: {val_acc:.4f} | {tokens_per_sec:.1f} tok/s | Mem: {memory_usage:.1f} MB")
 
         # Beispielgenerierung nach 1000 Schritten
         if step == max_steps - 1:
             prompt = "Once upon a time,"
             idx = text_to_token_ids(prompt, tokenizer).to(device)
             with torch.no_grad():
-                token_ids = generate(model, idx, max_new_tokens=50, context_size=config.block_size)
+                token_ids = generate(model, idx, max_new_tokens=100, context_size=config.block_size)
                 gen_text = token_ids_to_text(token_ids, tokenizer)
             print("\nPrompt:", prompt)
             print("Generated:", gen_text[len(prompt):].strip())
@@ -138,12 +156,13 @@ def main():
     prompt = "Once upon a time,"
     idx = text_to_token_ids(prompt, tokenizer).to(device)
     with torch.no_grad():
-        token_ids = generate(model, idx, max_new_tokens=50, context_size=config.block_size)
+        token_ids = generate(model, idx, max_new_tokens=100, context_size=config.block_size)
         gen_text = token_ids_to_text(token_ids, tokenizer)
     print("\n[Final Sample after Training]")
     print("Prompt:", prompt)
     print("Generated:", gen_text[len(prompt):].strip())
 
+    print("Gesamt trainierte Tokens Karpathy:", max_steps * B * T)
     wandb.finish()
 
 # ------------------------------------------------------
