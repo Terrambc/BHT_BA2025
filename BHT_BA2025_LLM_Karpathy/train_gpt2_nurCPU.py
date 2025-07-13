@@ -66,7 +66,7 @@ class Block(nn.Module):
 
 @dataclass
 class GPTConfig:
-    block_size: int = 256
+    block_size: int = 1024 # geändert von 256
     vocab_size: int = 50257
     n_layer: int = 4
     n_head: int = 4
@@ -208,15 +208,16 @@ def main():
 
     # Modell- und Trainingsparameter (klein für CPU!)
     config = GPTConfig(
-        vocab_size=50304,
-        block_size=1024,
-        n_layer=12,
-        n_head=12,
-        n_embd=768,
+        vocab_size=50257, # original 50304
+        block_size=512,  # vorher 1024
+        n_layer=6,       # vorer 12  
+        n_head=6,        # vorher 12
+        n_embd=384,       # vorher 768
     )
-    total_batch_size = 1024
-    B = 4
-    T = 256
+    total_batch_size = 2048 # geändert von
+    B = 4   # geändert von 8
+    T = 512 # geändert von 1024
+    
     grad_accum_steps = total_batch_size // (B * T)
     print(f"Total desired batch size: {total_batch_size}")
     print(f"=> Calculated gradient accumulation steps: {grad_accum_steps}")
