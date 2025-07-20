@@ -1,4 +1,5 @@
 import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import math
 import time
 import inspect
@@ -41,9 +42,9 @@ class CausalSelfAttention(nn.Module):
         self.register_buffer("bias", bias)
 
     def forward(self, x):
-        B, T, C = x.size() # batch size, sequenze length, embedding dimensionality (n_embd)
+        B, T, C = x.size() # Bedeutung der Abkürzungen B = batch size, T = sequenze length, C = embedding dimensionality (n_embd)
 
-        # Berechnet Query, Key, Values für alle Heads im Batch und schiebt den Head vorwärtzs zum nächsten Batch
+        # Berechnet Query, Key, Values für alle Heads im Batch und schiebt den Head vorwärts zum nächsten Batch
         # nh ist "number of heads", hs ist "head size" und C (number of channels) = nh * hs
         # e.g. in GPT-2 (124M), n_head = 12, hs = 64, so nh * hs = C = 768 Channels (Dimensionen bei Raschka) im Transformer
         qkv = self.c_attn(x)
