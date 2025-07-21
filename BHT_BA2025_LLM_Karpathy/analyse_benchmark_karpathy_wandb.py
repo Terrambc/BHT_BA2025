@@ -387,7 +387,7 @@ def main():
     device_type = "cuda" if device.startswith("cuda") else "cpu"
 
     ### Zusatz: Seed verschiedene Runs: 123, 5678, 458
-    SEED = 123   # RUNS 123, 5678, 458
+    SEED = 5678   # RUNS 123, 5678, 458
     random.seed(SEED)
     np.random.seed(SEED)
     torch.manual_seed(SEED) ### Zusatz: Original 1337
@@ -432,7 +432,7 @@ def main():
 
     max_lr = 3e-4  ### ZUSATZ: original 6e-4
     min_lr = max_lr * 0.1
-    warmup_steps = 800  ### Zusatz: SEED 123 > 800, SEED 5678 > 1000, SEED 458 > 1200 || Original warmup_steps = 715
+    warmup_steps = 1000  ### Zusatz: SEED 123 > 800, SEED 5678 > 1000, SEED 458 > 1200 || Original warmup_steps = 715
     max_steps = 16990 ### 16990 Steps = 2 Epochs bei Raschka || Zusatz: 19,073 steps is ~1 epoch, if data is 10B tokens and batch size 0.5M tokens
 
 
@@ -441,7 +441,7 @@ def main():
     if master_process:
         wandb.init(
             project="Analyse_Raschka_Karpathy",
-            name = "karpathy_cpu_Seed123",
+            name = "karpathy_cpu_Seed{SEED}",
             config={
                 "batch_size": B,
                 "total_batch_size": total_batch_size,
@@ -573,13 +573,13 @@ def main():
         if ((step > 0 and step % 1000 == 0) or last_step) and (not use_compile):  ### Zusatz vorher step % 250 == 0
             model.eval()
             num_return_sequences = 4
-            max_length = 32
-            tokens = enc.encode("Hello, I'm a language model,")
+            max_length = 50
+            tokens = enc.encode("Once upon a time,")
             tokens = torch.tensor(tokens, dtype=torch.long)
             tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
             xgen = tokens.to(device)
             sample_rng = torch.Generator(device=device)
-            sample_rng.manual_seed(42 + ddp_rank)
+            sample_rng.manual_seed(123 + ddp_rank)
 
             while xgen.size(1) < max_length:
                 # Leitet das Modell weiter, um die Protokolle zu erhalten
@@ -710,13 +710,13 @@ def main():
             train_perplexity = torch.exp(loss_accum).item()
 
             # Memory Usage 
-            memory_usage_gb = 0
+            memory_usage_mb = 0
             if device_type == "cuda":
-                memory_usage_gb = torch.cuda.memory_allocated() / 1024 / 1024 / 1024
+                memory_usage_mb = torch.cuda.memory_allocated() / 1024 / 1024 
             else:
                 # CPU Memory
                 process = psutil.Process()
-                memory_usage_gb = process.memory_info().rss / 1024 / 1024 / 1024
+                memory_usage_mb = process.memory_info().rss / 1024 / 1024 
 
             cpu_percent = psutil.cpu_percent(interval = None)
             memory_usage_percent = psutil.virtual_memory().percent
@@ -729,7 +729,7 @@ def main():
                 "learning_rate": lr,
                 "grad_norm": norm,
                 "throughput": tokens_per_sec,
-                "memory_usage": memory_usage_gb,
+                "memory_usage": memory_usage_mb,
                 "time_per_step_ms": dt * 1000, 
                 "step": step,
                 "system/cpu_percent": cpu_percent,
@@ -742,7 +742,7 @@ def main():
                     f"train_loss {loss_accum.item():.4f} | "
                     f"train_perplexity {train_perplexity:.1f} | "
                     f"train_acc {train_accuracy:.3f} | "
-                    f"tok/s {tokens_per_sec:.1f} | mem {memory_usage_gb:.0f}MB")
+                    f"tok/s {tokens_per_sec:.1f} | mem {memory_usage_mb:.0f} MB")
 
     if master_process:
         wandb.finish()
