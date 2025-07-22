@@ -673,11 +673,6 @@ def main():
             loss_accum += loss.detach()
             loss.backward()
 
-        ### Zusatz: Debug-Output
-        if step % 100 == 0:  # Alle 100 Steps
-            print(f"Step {step}, Zeit: {time.time() - t0:.2f}s")
-
-
         if ddp:
             dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
 
@@ -727,20 +722,26 @@ def main():
             cpu_percent = psutil.cpu_percent(interval = None)
             memory_usage_percent = psutil.virtual_memory().percent
             
+            ### Zusatz: Debug-Output
+            if step % 100 == 0:  # Alle 100 Steps
+                print(f"Step {step}, Zeit: {time.time() - t0:.2f}s")
+
+
             # Wandb logging
-            wandb.log({
-                "train_loss": loss_accum.item(),
-                "train_perplexity": train_perplexity,
-                "train_accuracy": train_accuracy, 
-                "learning_rate": lr,
-                "grad_norm": norm,
-                "throughput": tokens_per_sec,
-                "memory_usage": memory_usage_mb,
-                "time_per_step_ms": dt * 1000, 
-                "step": step,
-                "system/cpu_percent": cpu_percent,
-                "system/memory_percent": memory_usage_percent
-            })
+            if step % 400 == 0 or last_step:
+                wandb.log({
+                    "train_loss": loss_accum.item(),
+                    "train_perplexity": train_perplexity,
+                    "train_accuracy": train_accuracy, 
+                    "learning_rate": lr,
+                    "grad_norm": norm,
+                    "throughput": tokens_per_sec,
+                    "memory_usage": memory_usage_mb,
+                    "time_per_step_ms": dt * 1000, 
+                    "step": step,
+                    "system/cpu_percent": cpu_percent,
+                    "system/memory_percent": memory_usage_percent
+                })
 
             # Alle 10 Schritte eine Ausgabe
             if step % 400 == 0 or last_step:
