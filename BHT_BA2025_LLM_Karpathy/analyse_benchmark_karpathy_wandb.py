@@ -21,6 +21,7 @@ import wandb
 import psutil
 # import GPUtil # GPU-Monitoring
 import random
+from transformers import GPT2LMHeadModel
 
 #------------------------------------------------------#
 ### Klassen und Funktionen  ###
@@ -151,7 +152,7 @@ class GPT(nn.Module):
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         # die Gewichte von wte wird weitergleitet an das Element lm_head.weight
-        self.transformer.wte.weight = self.lm_head.weight
+        self.transformer.wte.weight = self.lm_head.weight # https://paperswithcode.com/method/weight-tying
 
         # Inizialisiert die Parameter
         self.apply(self._init_weights)
@@ -204,7 +205,6 @@ class GPT(nn.Module):
     def from_pretrained(cls, model_type):
         """Loads pretrained GPT-2 model weights from huggingface"""
         assert model_type in {'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'}
-        from transformers import GPT2LMHeadModel
         print("loading weights from pretrained gpt: %s" % model_type)
 
         # n_layer, n_head und n_embd werden aus model_type bestimmt
@@ -222,7 +222,7 @@ class GPT(nn.Module):
         model = GPT(config)
         sd = model.state_dict()
         sd_keys = sd.keys()
-        sd_keys = [k for k in sd_keys if not k.endswith('.attn.bias')] # verwirft diese Maske / Puffer, keinen Parameter
+        sd_keys = [k for k in sd_keys if not k.endswith('.attn.bias')] # verwirft diese Maske / Puffer, kein Parameter
 
         # initialisiere ein Huggingface/Transformers-Modell
         model_hf = GPT2LMHeadModel.from_pretrained(model_type)
@@ -232,7 +232,7 @@ class GPT(nn.Module):
         sd_keys_hf = sd_hf.keys()
         sd_keys_hf = [k for k in sd_keys_hf if not k.endswith('.attn.masked_bias')] # ignorier diese, nur ein Puffer
         sd_keys_hf = [k for k in sd_keys_hf if not k.endswith('.attn.bias')] # dasselbe, nur eine Maske (buffer)
-        transposed = ['attn.c_attn.weight', 'attn.c_proj.weight', 'mlp.c_fc.weight', 'mlp.c_proj.weight']
+        transposed = ['attn.c_attn.weight', 'attn.c_proj.weight', 'mlp.c_fc.weight', 'mlp.c_proj.weight']  # hardcoded von Karpathy
 
         # Die OpenAI-Checkpoints verwenden grundsätzlich ein „Conv1D“-Modul, wir möchten aber nur ein Standard-Linear verwenden.
         # Das bedeutet, dass wir diese Gewichte beim Import transponieren müssen.
@@ -274,7 +274,7 @@ class GPT(nn.Module):
 
         # Erstellt den AdamW-Optimierer und verwendet die Fused-Version, falls verfügbar
         fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
-        use_fused = fused_available and device_type == "cuda"
+        use_fused = fused_available and "cuda" in device_type  # Korrektur aus GIT Repro > makes this statement true when DDP is enabled. 
         if master_process:
             print(f"using fused AdamW: {use_fused}")
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)
@@ -395,12 +395,12 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed(SEED)
 
-    enc = tiktoken.get_encoding("gpt2")
+    enc = tiktoken.get_encoding('gpt2')
 
     # Anpassung der Batchsize 
     ### Zusatz: Werte auf die Hälfte des GPT2-Small eingestellt, um die Trainingszeit zu verkürzen, um mehr Läufe durchführen zu können (Nur auf CPU)
     '''total_batch_size = 524288 # 2**19, ~0.5M Anzahl von Tokens  <--- Freeze vom System. Vermutlich RAM Overflow'''
-    total_batch_size = 2048 ### Zusatz: letzter Stand 8192 || läuft gerade noch mit meinem System 16384
+    total_batch_size = 4096 ### 2048 Zusatz: letzter Stand 8192 || läuft gerade noch mit meinem System 16384
     B = 4                   ### Zusatz: Reduziert von 8 auf 4 um die Trainingszeit zu reduzieren für die Analyse || Original:  Micro Batch Size - orginal eingestellt 64
     T = 1024                 ### Zusatz: Länge der Sequenzen - original eingestellt 1024 > 512
     assert total_batch_size % (B * T * ddp_world_size) == 0  # make sure total_batch_size ist Teilbar durch B * T
@@ -419,7 +419,8 @@ def main():
     # Erzeugt das Model - mit "hübschen Zahlen"
     #model = GPT(GPTConfig(vocab_size=50257)) ##' Zusatz: Original 50304 eingestellt
 
-    model = GPT.from_pretrained("gpt2") #or init from OpenAI GPT-2
+    model = GPT.from_pretrained('gpt2') 
+    
     ''' model = torch.compile(model) <-- kann auf der CPU nur mit einer C++ Entwicklungsumgebung genutzt werden. Ist ansonsten für CUDA'''
     model.to(device)
     use_compile = False # torch.compile interferes with HellaSwag eval and Generation. TODO fix
@@ -555,7 +556,7 @@ def main():
                     "step": step
                 })
 
-                if step > 0 and (step % 2000 == 0 or last_step):
+                if step > 0 and (step % 8498 == 0 or last_step):
                     # optional Modell-Checkpoints schreiben
                     checkpoint_path = os.path.join(log_dir, f"model_{step:05d}.pt")
                     checkpoint = {
@@ -570,7 +571,7 @@ def main():
 
  
         # ab und zu aus dem Modell generieren (außer Schritt 0, bei dem es sich um Rauschen handelt)
-        if ((step > 0 and step % 1699 == 0) or last_step) and (not use_compile):  ### Zusatz vorher step % 250 == 0
+        if ((step > 0 and step % 850 == 0) or last_step) and (not use_compile):  ### Zusatz vorher step % 250 == 0
             model.eval()
             num_return_sequences = 4
             max_length = 50
@@ -672,6 +673,11 @@ def main():
             loss_accum += loss.detach()
             loss.backward()
 
+        ### Zusatz: Debug-Output
+        if step % 100 == 0:  # Alle 100 Steps
+            print(f"Step {step}, Zeit: {time.time() - t0:.2f}s")
+
+
         if ddp:
             dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
 
@@ -736,8 +742,8 @@ def main():
                 "system/memory_percent": memory_usage_percent
             })
 
-                        # Alle 10 Schritte eine Ausgabe
-            if step % 10 == 0 or last_step:
+            # Alle 10 Schritte eine Ausgabe
+            if step % 400 == 0 or last_step:
                 print(f"Step {step:4d} | "
                     f"train_loss {loss_accum.item():.4f} | "
                     f"train_perplexity {train_perplexity:.1f} | "
