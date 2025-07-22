@@ -33,11 +33,13 @@ Themen:
 '''
 
 ### Funktionen ###
+# Text wird in Token-IDs umgewandelt
 def text_to_token_ids(text, tokenizer):
     encoded = tokenizer.encode(text, allowed_special={'<|endoftext|>'})
     encoded_tensor = torch.tensor(encoded).unsqueeze(0) # Fügt Batch Dimension hinzu
     return encoded_tensor
 
+# Token-IDs werden in Text umgewandelt
 def token_ids_to_text(token_ids, tokenizer):
     flat = token_ids.squeeze(0) # entfernt Batch Dimension
     return tokenizer.decode(flat.tolist())
