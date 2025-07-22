@@ -122,11 +122,11 @@ class Block(nn.Module):
 # Hyperparameter
 @dataclass
 class GPTConfig:
-    block_size: int = 512   ### Zusatz: original 1024 # Maximale Squenz Länge -  maximale Anzahl von Input Tokens das Model händeln kann via dem Positional Embeddings
+    block_size: int = 1024   ### Zusatz: original 1024 > 512 # Maximale Squenz Länge -  maximale Anzahl von Input Tokens das Model händeln kann via dem Positional Embeddings
     vocab_size: int = 50257 # Anzahl der Token, bestehend aus 50.000 Byte-Pair-Embedded + 256 Bytes Tokens + 1 <|endoftext|> Sondertoken
-    n_layer: int = 6       ### Zusatz: original 12 # Anzahl von Transformer Blöcken (Layers)
-    n_head: int = 6        ### Zusatz: original 12 # Anzahl der Attention Heads im Multi-head Attention Mechanismus
-    n_embd: int = 384       ### Zusatz: original 768 # Größe des Embeddings - jeder Token wird in einen 768 dimensionalen Vektor umgewandelt
+    n_layer: int = 12       ### Zusatz: original 12 > 6 # Anzahl von Transformer Blöcken (Layers)
+    n_head: int = 12        ### Zusatz: original 12 > 6# Anzahl der Attention Heads im Multi-head Attention Mechanismus
+    n_embd: int = 768       ### Zusatz: original 768 > 384 # Größe des Embeddings - jeder Token wird in einen 768 dimensionalen Vektor umgewandelt
 
 
 #-----------------------------------------------------------------------------
@@ -387,7 +387,7 @@ def main():
     device_type = "cuda" if device.startswith("cuda") else "cpu"
 
     ### Zusatz: Seed verschiedene Runs: 123, 5678, 458
-    SEED = 5678   # RUNS 123, 5678, 458
+    SEED = 123   # RUNS 123, 5678, 458
     random.seed(SEED)
     np.random.seed(SEED)
     torch.manual_seed(SEED) ### Zusatz: Original 1337
@@ -402,7 +402,7 @@ def main():
     '''total_batch_size = 524288 # 2**19, ~0.5M Anzahl von Tokens  <--- Freeze vom System. Vermutlich RAM Overflow'''
     total_batch_size = 2048 ### Zusatz: letzter Stand 8192 || läuft gerade noch mit meinem System 16384
     B = 4                   ### Zusatz: Reduziert von 8 auf 4 um die Trainingszeit zu reduzieren für die Analyse || Original:  Micro Batch Size - orginal eingestellt 64
-    T = 512                 ### Zusatz: Länge der Sequenzen - original eingestellt 1024
+    T = 1024                 ### Zusatz: Länge der Sequenzen - original eingestellt 1024 > 512
     assert total_batch_size % (B * T * ddp_world_size) == 0  # make sure total_batch_size ist Teilbar durch B * T
     grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
     if master_process:
@@ -417,9 +417,9 @@ def main():
     torch.set_float32_matmul_precision('high')
 
     # Erzeugt das Model - mit "hübschen Zahlen"
-    model = GPT(GPTConfig(vocab_size=50257)) ##' Zusatz: Original 50304 eingestellt
+    #model = GPT(GPTConfig(vocab_size=50257)) ##' Zusatz: Original 50304 eingestellt
 
-    # model = GPT.from_pretrained("gpt2") or init from OpenAI GPT-2
+    model = GPT.from_pretrained("gpt2") #or init from OpenAI GPT-2
     ''' model = torch.compile(model) <-- kann auf der CPU nur mit einer C++ Entwicklungsumgebung genutzt werden. Ist ansonsten für CUDA'''
     model.to(device)
     use_compile = False # torch.compile interferes with HellaSwag eval and Generation. TODO fix
@@ -430,10 +430,10 @@ def main():
     raw_model = model.module if ddp else model # enthält immer das "raw" unwrapped model
 
 
-    max_lr = 3e-4  ### ZUSATZ: original 6e-4
+    max_lr = 5e-5  ### ZUSATZ: original 6e-4 > 3e-4
     min_lr = max_lr * 0.1
-    warmup_steps = 1000  ### Zusatz: SEED 123 > 800, SEED 5678 > 1000, SEED 458 > 1200 || Original warmup_steps = 715
-    max_steps = 16990 ### 16990 Steps = 2 Epochs bei Raschka || Zusatz: 19,073 steps is ~1 epoch, if data is 10B tokens and batch size 0.5M tokens
+    warmup_steps = 800  ### Zusatz: SEED 123 > 800, SEED 5678 > 1000, SEED 458 > 1200 || Original warmup_steps = 715
+    max_steps = 8498 ### 16990 Steps = 2 Epochs bei Raschka || Zusatz: 19,073 steps is ~1 epoch, if data is 10B tokens and batch size 0.5M tokens
 
 
     ### Zusatz ###
@@ -441,7 +441,7 @@ def main():
     if master_process:
         wandb.init(
             project="Analyse_Raschka_Karpathy",
-            name = "karpathy_cpu_Seed{SEED}",
+            name = "karpathy_cpu_Seed123",
             config={
                 "batch_size": B,
                 "total_batch_size": total_batch_size,
@@ -504,12 +504,12 @@ def main():
         last_step = (step == max_steps - 1)
 
         # bewertet ab und zu unseren Validierungsverlust
-        if step % 250 == 0 or last_step:
+        if step % 400 == 0 or last_step:  # vorher 250
             model.eval()
             val_loader.reset()
             with torch.no_grad():
                 val_loss_accum = 0.0
-                val_loss_steps = 20
+                val_loss_steps = 5 # vorher 20
 
                 ### Zusatz ###
                 # Variable für Val Accuracy
@@ -555,7 +555,7 @@ def main():
                     "step": step
                 })
 
-                if step > 0 and (step % 5000 == 0 or last_step):
+                if step > 0 and (step % 2000 == 0 or last_step):
                     # optional Modell-Checkpoints schreiben
                     checkpoint_path = os.path.join(log_dir, f"model_{step:05d}.pt")
                     checkpoint = {
@@ -570,7 +570,7 @@ def main():
 
  
         # ab und zu aus dem Modell generieren (außer Schritt 0, bei dem es sich um Rauschen handelt)
-        if ((step > 0 and step % 1000 == 0) or last_step) and (not use_compile):  ### Zusatz vorher step % 250 == 0
+        if ((step > 0 and step % 1699 == 0) or last_step) and (not use_compile):  ### Zusatz vorher step % 250 == 0
             model.eval()
             num_return_sequences = 4
             max_length = 50
