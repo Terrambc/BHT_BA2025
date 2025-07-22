@@ -7,7 +7,8 @@ from torch.utils.data import Dataset, DataLoader
 import tiktoken
 from functools import partial
 from c5_gpt_download import download_and_load_gpt2
-from c5_pretraining_unlabeled_data import GPTModel, load_weights_into_gpt, generate, text_to_token_ids, token_ids_to_text, calc_loss_loader, train_model_simple
+# from c5_pretraining_unlabeled_data import GPTModel, load_weights_into_gpt, generate, text_to_token_ids, token_ids_to_text, calc_loss_loader, train_model_simple
+from c5_pretraining_unlabeld_data_erweitert import GPTModel, load_weights_into_gpt, generate, text_to_token_ids, token_ids_to_text, calc_loss_loader, train_model
 import time
 from tqdm import tqdm
 import re
