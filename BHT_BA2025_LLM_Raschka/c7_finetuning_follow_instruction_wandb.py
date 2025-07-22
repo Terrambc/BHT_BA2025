@@ -424,6 +424,10 @@ def main():
         wandb_name=f"raschka_cpu_Seed123",
         seed=SEED
     )
+    
+    print(f"Total steps completed: {len(train_loader) * num_epochs}")
+    print(f"Total training batches: {len(train_loader)}")
+
     end_time = time.time()
     execution_time_minutes = (end_time - start_time) / 60
     print(f"Training completed in {execution_time_minutes:.2f} minutes.")
