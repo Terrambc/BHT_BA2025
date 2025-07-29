@@ -350,6 +350,9 @@ def calculate_accuracy(logits, targets):
 
 ### Tests und Ausführungen ###
 def main():
+
+    ##import sys; sys.exit(0)
+
     # Ausführung der Trainingsschleife
     ''' Wieder eine Optimierung für CUDA '''
     # Das wird genutzt wenn man mehrere GDUs parallel laufen lässt. 
@@ -400,9 +403,9 @@ def main():
     # Anpassung der Batchsize 
     ### Zusatz: Werte auf die Hälfte des GPT2-Small eingestellt, um die Trainingszeit zu verkürzen, um mehr Läufe durchführen zu können (Nur auf CPU)
     '''total_batch_size = 524288 # 2**19, ~0.5M Anzahl von Tokens  <--- Freeze vom System. Vermutlich RAM Overflow'''
-    total_batch_size = 4096 ### 2048 Zusatz: letzter Stand 8192 || läuft gerade noch mit meinem System 16384
+    total_batch_size = 2048 ### 2048 Zusatz: letzter Stand 8192 || läuft gerade noch mit meinem System 16384
     B = 4                   ### Zusatz: Reduziert von 8 auf 4 um die Trainingszeit zu reduzieren für die Analyse || Original:  Micro Batch Size - orginal eingestellt 64
-    T = 1024                 ### Zusatz: Länge der Sequenzen - original eingestellt 1024 > 512
+    T = 512                 ### Zusatz: Länge der Sequenzen - original eingestellt 1024 > 512
     assert total_batch_size % (B * T * ddp_world_size) == 0  # make sure total_batch_size ist Teilbar durch B * T
     grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
     if master_process:
@@ -441,9 +444,10 @@ def main():
     #### Weights & Biases Initialisierung ####
     if master_process:
         wandb.init(
-            project="Analyse_Raschka_Karpathy",
+            project="Analyse_LLM-Ansätze",
             name = "karpathy_cpu_Seed123",
             config={
+                "Dataset": "TinyStories",
                 "batch_size": B,
                 "total_batch_size": total_batch_size,
                 "sequence_length": T,
@@ -453,7 +457,7 @@ def main():
                 "max_steps": max_steps,
                 "weight_decay": 0.1,
                 "grad_accum_steps": grad_accum_steps,
-                "model_config": raw_model.config.__dict__,
+                "model_config": raw_model.config.__dict__,  # bei Raschka auch noch einbauen für den nächsten Run
                 "device": device,
                 "num_parameters": sum(p.numel() for p in raw_model.parameters())
             }
@@ -673,6 +677,12 @@ def main():
             loss_accum += loss.detach()
             loss.backward()
 
+        ### Zusatz> Debug: Timing für verschiedene Phasen
+        t_after_backward = time.time()
+        if step % 100 == 0:
+            print(f"Step {step}: Data loading + forward/backward: {t_after_backward - t0:.2f}s")
+
+            
         if ddp:
             dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
 
@@ -690,6 +700,14 @@ def main():
             train_accuracy = calculate_accuracy(logits.view(-1, logits.size(-1)), y.view(-1))
         
         optimizer.step()
+
+        ### Zusatz > Debug time
+        t_after_optimizer = time.time()
+        if step % 100 == 0:
+            print(f"  Optimizer step: {t_after_optimizer - t_after_backward:.2f}s")
+            print(f"  Total step time: {t_after_optimizer - t0:.2f}s")
+
+
         if device_type == "cuda":
             torch.cuda.synchronize() # wartet auf die GPU, bis sie mit der Arbeit fertig ist
 
