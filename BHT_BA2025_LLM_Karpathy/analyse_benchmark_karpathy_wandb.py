@@ -120,7 +120,7 @@ class Block(nn.Module):
 
 #-----------------------------------------------------------------------------
 # Konfigurationsdaten für das GPT Model
-# Hyperparameter
+# Hyperparameter +  wird benötigt um die Gewichte zu laden
 @dataclass
 class GPTConfig:
     block_size: int = 1024   ### Zusatz: original 1024 > 512 # Maximale Squenz Länge -  maximale Anzahl von Input Tokens das Model händeln kann via dem Positional Embeddings
@@ -389,8 +389,8 @@ def main():
 
     device_type = "cuda" if device.startswith("cuda") else "cpu"
 
-    ### Zusatz: Seed verschiedene Runs: 123, 5678, 458
-    SEED = 123   # RUNS 123, 5678, 458
+    ### Zusatz: Seed verschiedene Runs: 123, 5678, 45887
+    SEED = 45887   # RUNS 123, 5678, 45887
     random.seed(SEED)
     np.random.seed(SEED)
     torch.manual_seed(SEED) ### Zusatz: Original 1337
@@ -436,7 +436,7 @@ def main():
 
     max_lr = 5e-5  ### ZUSATZ: original 6e-4 > 3e-4
     min_lr = max_lr * 0.1
-    warmup_steps = 800  ### Zusatz: SEED 123 > 800, SEED 5678 > 1000, SEED 458 > 1200 || Original warmup_steps = 715
+    warmup_steps = 1000  ### Zusatz: SEED 123 > 800, SEED 5678 > 800, SEED 45887 > 1000 || Original warmup_steps = 715
     max_steps = 8498 ### 16990 Steps = 2 Epochs bei Raschka || Zusatz: 19,073 steps is ~1 epoch, if data is 10B tokens and batch size 0.5M tokens
 
 
@@ -444,8 +444,8 @@ def main():
     #### Weights & Biases Initialisierung ####
     if master_process:
         wandb.init(
-            project="Analyse_LLM-Ansätze",
-            name = "karpathy_cpu_Seed123",
+            project="Karpathy_test",
+            name = "karpathy_cpu_autocast",
             config={
                 "Dataset": "TinyStories",
                 "batch_size": B,
@@ -509,7 +509,7 @@ def main():
         last_step = (step == max_steps - 1)
 
         # bewertet ab und zu unseren Validierungsverlust
-        if step % 400 == 0 or last_step:  # vorher 250
+        if step % 200 == 0 or last_step:  # vorher 250
             model.eval()
             val_loader.reset()
             with torch.no_grad():
@@ -525,7 +525,7 @@ def main():
                     x, y = x.to(device), y.to(device)
                     ''' kann nicht auf der CPU genutzt werden, sorgt ansonsten für Freeze im System. 
                     with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                        logits, loss = model(x, y)'''
+                        logits, loss = model(x, y) '''
                     
                     logits, loss = model(x, y) # Logits und Loss von Inputs und Targets für CPU
                     
@@ -575,7 +575,7 @@ def main():
 
  
         # ab und zu aus dem Modell generieren (außer Schritt 0, bei dem es sich um Rauschen handelt)
-        if ((step > 0 and step % 850 == 0) or last_step) and (not use_compile):  ### Zusatz vorher step % 250 == 0
+        if ((step > 0 and step % 8498 == 0) or last_step) and (not use_compile):  ### Zusatz vorher step % 250 == 0
             model.eval()
             num_return_sequences = 4
             max_length = 50
@@ -584,7 +584,7 @@ def main():
             tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
             xgen = tokens.to(device)
             sample_rng = torch.Generator(device=device)
-            sample_rng.manual_seed(123 + ddp_rank)
+            sample_rng.manual_seed(45887 + ddp_rank)
 
             while xgen.size(1) < max_length:
                 # Leitet das Modell weiter, um die Protokolle zu erhalten
@@ -663,9 +663,9 @@ def main():
             # Feld wird für den Foward Pass verwendet
             if ddp:
                 model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
-            ''' kann nicht auf der CPU genutzt werden, sorgt ansonsten für Freeze im System.
+            ''' kann nicht auf der CPU genutzt werden, sorgt ansonsten für Freeze oder schwere Performance Probleme im System.
             with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
-                logits, loss = model(x, y)'''
+                logits, loss = model(x, y) '''
             
             logits, loss = model(x, y) # für CPU
 
@@ -679,7 +679,7 @@ def main():
 
         ### Zusatz> Debug: Timing für verschiedene Phasen
         t_after_backward = time.time()
-        if step % 100 == 0:
+        if step % 400 == 0:
             print(f"Step {step}: Data loading + forward/backward: {t_after_backward - t0:.2f}s")
 
             
@@ -703,7 +703,7 @@ def main():
 
         ### Zusatz > Debug time
         t_after_optimizer = time.time()
-        if step % 100 == 0:
+        if step % 400 == 0:
             print(f"  Optimizer step: {t_after_optimizer - t_after_backward:.2f}s")
             print(f"  Total step time: {t_after_optimizer - t0:.2f}s")
 
@@ -741,12 +741,12 @@ def main():
             memory_usage_percent = psutil.virtual_memory().percent
             
             ### Zusatz: Debug-Output
-            if step % 100 == 0:  # Alle 100 Steps
+            if step % 400 == 0:  # Alle 100 Steps
                 print(f"Step {step}, Zeit: {time.time() - t0:.2f}s")
 
 
             # Wandb logging
-            if step % 400 == 0 or last_step:
+            if step % 200 == 0 or last_step:
                 wandb.log({
                     "train_loss": loss_accum.item(),
                     "train_perplexity": train_perplexity,
@@ -761,8 +761,8 @@ def main():
                     "system/memory_percent": memory_usage_percent
                 })
 
-            # Alle 10 Schritte eine Ausgabe
-            if step % 400 == 0 or last_step:
+            # Alle 200 Schritte eine Ausgabe
+            if step % 200 == 0 or last_step:
                 print(f"Step {step:4d} | "
                     f"train_loss {loss_accum.item():.4f} | "
                     f"train_perplexity {train_perplexity:.1f} | "

@@ -177,7 +177,7 @@ class GPT(nn.Module):
             x = block(x)
 
 
-        # Weiterleitung der fianllen LayerNorm und den Klassifikator
+        # Weiterleitung der fianlen LayerNorm und den Klassifikator
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x) # (B, T, vocab_size)
 
