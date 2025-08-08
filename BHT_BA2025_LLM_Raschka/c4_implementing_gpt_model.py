@@ -218,11 +218,6 @@ class GPTModel(nn.Module):
         return logits
 
 
-
-
-
-
-
 ### Funktionen ###
 
 # Gradienten ausdrucken

@@ -219,7 +219,7 @@ def query_model(
             {"role": "user", "content": prompt}
         ],
         "options": {     # Für deterministische Antworten sind die folgenden Einstellungen erforderlich
-            "seed": 123,
+            "seed": 5678,
             "temperature": 0,
             "num_ctx": 2048
         }
@@ -284,7 +284,7 @@ def main():
     # Data Loader für Trainings-, Validierungs- und Testset
     num_workers = 0
     batch_size = 4 ### Zusatz: angepasst - original 8
-    T = 1024 # Neue Variable für Sequence Length (wie bei Karpathy) 
+    T = 512 # Neue Variable für Sequence Length (wie bei Karpathy) -- geändert nun auf 512 
 
     # Aufteilung des Datensatzs in Trainings-, Validierungs- und Testdatensatz
     train_portion = int(len(data) * 0.85)  # 85% fürs Trainieren
@@ -317,7 +317,7 @@ def main():
     )
 
     ### Zusatz: Seed für Reproduzierbarkeit
-    SEED = 123  # RUNS 123, 5678, 458
+    SEED = 45887  # RUNS 123, 5678, 45887
     random.seed(SEED)
     np.random.seed(SEED)
     torch.manual_seed(SEED)
@@ -359,11 +359,29 @@ def main():
         num_workers=num_workers
     )
 
+    ## Zusatz: Zum Auslesen wieviel Token wirklich nach Collat noch vorhanden sind. 
+    total_train_tokens = 0
+    for batch in train_loader:
+        inputs, _ = batch
+        total_train_tokens += inputs.numel()
+
+    total_val_tokens = 0
+    for batch in val_loader:
+        inputs, _ = batch
+        total_val_tokens += inputs.numel()
+
+    print(f"RASCHKA Train tokens (nach Collate): {total_train_tokens:,}")
+    print(f"RASCHKA Val tokens (nach Collate):   {total_val_tokens:,}")
+    print(f"GESAMT: {total_train_tokens + total_val_tokens:,}")
+
+    #import sys; sys.exit(0)
+
+
     ### 7.5 Laden des pretrained LLM mit 355 millionen parameter
     ### Zusatz BASE CONFIG custom angepasst, für kürzere Trainingsrunden
     BASE_CONFIG = {
         "vocab_size": 50257,
-        "context_length": T,  # wie Karpathy
+        "context_length": 1024,  # war vorher T wie Karpathy
         "drop_rate": 0.0,
         "qkv_bias": True,
         "emb_dim": 768,     # wie Karpathy
@@ -399,9 +417,13 @@ def main():
 
     ### Zusatz: Optimizer und Training
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5, weight_decay=0.1)
-    num_epochs = 1
 
+    ## Zusatz: zentralisierte Parameteranpassung
+    num_epochs = 1
     lernrate = 5e-5
+    eval_freq = 200
+    eval_iter = 5
+    warmup_steps = 1000
 
     ### Zusatz: train_model_simple mit train_model
     start_time = time.time()
@@ -412,16 +434,16 @@ def main():
         optimizer=optimizer, 
         device=device,
         n_epochs=num_epochs, 
-        eval_freq=400, 
-        eval_iter=5,
+        eval_freq=eval_freq, # von 400 geändert, weil weniger Parameter können weniger Steps bedeuten
+        eval_iter=eval_iter,
         start_context="Once upon a time", 
         tokenizer=tokenizer,
-        warmup_steps=800,
+        warmup_steps=warmup_steps,
         initial_lr=lernrate, # 3e-4
         min_lr= lernrate * 0.1,
         wandb_log=True,
-        wandb_project="Analyse_Raschka_Karpathy",
-        wandb_name=f"raschka_cpu_Seed123",
+        wandb_project="Analyse_LLM-Ansätze",
+        wandb_name=f"raschka_cpu_Seed45887",
         seed=SEED
     )
     

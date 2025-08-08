@@ -108,6 +108,7 @@ def train_model(model, train_loader, val_loader, optimizer, device, n_epochs,
             project=wandb_project,
             name=wandb_name,
             config={
+                "Dataset": "TinyStories",
                 "batch_size": batch_size,
                 "total_batch_size": total_batch_size,
                 "sequence_length": seq_length,
