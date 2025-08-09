@@ -283,8 +283,8 @@ def main():
 
     # Data Loader für Trainings-, Validierungs- und Testset
     num_workers = 0
-    batch_size = 4 ### Zusatz: angepasst - original 8
-    T = 512 # Neue Variable für Sequence Length (wie bei Karpathy) -- geändert nun auf 512 
+    batch_size = 8 ### Zusatz: angepasst - original 8
+    T = 1024 # Neue Variable für Sequence Length (wie bei Karpathy) -- geändert nun auf 512 
 
     # Aufteilung des Datensatzs in Trainings-, Validierungs- und Testdatensatz
     train_portion = int(len(data) * 0.85)  # 85% fürs Trainieren
@@ -317,7 +317,7 @@ def main():
     )
 
     ### Zusatz: Seed für Reproduzierbarkeit
-    SEED = 45887  # RUNS 123, 5678, 45887
+    SEED = 123  # RUNS 123, 5678, 45887
     random.seed(SEED)
     np.random.seed(SEED)
     torch.manual_seed(SEED)
@@ -423,7 +423,7 @@ def main():
     lernrate = 5e-5
     eval_freq = 200
     eval_iter = 5
-    warmup_steps = 1000
+    warmup_steps = 800
 
     ### Zusatz: train_model_simple mit train_model
     start_time = time.time()
@@ -442,8 +442,8 @@ def main():
         initial_lr=lernrate, # 3e-4
         min_lr= lernrate * 0.1,
         wandb_log=True,
-        wandb_project="Analyse_LLM-Ansätze",
-        wandb_name=f"raschka_cpu_Seed45887",
+        wandb_project="Analyse_auf_GPU",
+        wandb_name=f"raschka_gpu_123",
         seed=SEED
     )
     
