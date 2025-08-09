@@ -393,7 +393,7 @@ def main():
     device_type = "cuda" if device.startswith("cuda") else "cpu"
 
     ### Zusatz: Seed verschiedene Runs: 123, 5678, 45887
-    SEED = 45887   # RUNS 123, 5678, 45887
+    SEED = 123   # RUNS 123, 5678, 45887
     random.seed(SEED)
     np.random.seed(SEED)
     torch.manual_seed(SEED) ### Zusatz: Original 1337
@@ -439,7 +439,7 @@ def main():
 
     max_lr = 5e-5  ### ZUSATZ: original 6e-4 > 3e-4
     min_lr = max_lr * 0.1
-    warmup_steps = 1000  ### Zusatz: SEED 123 > 800, SEED 5678 > 800, SEED 45887 > 1000 || Original warmup_steps = 715
+    warmup_steps = 800  ### Zusatz: SEED 123 > 800, SEED 5678 > 800, SEED 45887 > 1000 || Original warmup_steps = 715
     max_steps = 8498 ### 16990 Steps = 2 Epochs bei Raschka || Zusatz: 19,073 steps is ~1 epoch, if data is 10B tokens and batch size 0.5M tokens
 
 
