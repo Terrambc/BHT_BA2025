@@ -429,7 +429,7 @@ def main():
     
     model = torch.compile(model) #<-- kann auf der CPU nur mit einer C++ Entwicklungsumgebung genutzt werden. Ist ansonsten für CUDA'''
     model.to(device)
-    use_compile = True # torch.compile interferes with HellaSwag eval and Generation. TODO fix
+    use_compile = False # torch.compile interferes with HellaSwag eval and Generation. TODO fix -- FÜHRT BEI GPU ZU EINEM FEHLER 
     if use_compile:
         model = torch.compile(model)
     if ddp:
