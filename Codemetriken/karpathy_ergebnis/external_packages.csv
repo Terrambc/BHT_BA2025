@@ -1,0 +1,11 @@
+module,external_package
+train_gpt2_final,dataclasses
+train_gpt2_final,hellaswag
+train_gpt2_final,inspect
+train_gpt2_final,math
+train_gpt2_final,numpy
+train_gpt2_final,os
+train_gpt2_final,tiktoken
+train_gpt2_final,time
+train_gpt2_final,torch
+train_gpt2_final,transformers

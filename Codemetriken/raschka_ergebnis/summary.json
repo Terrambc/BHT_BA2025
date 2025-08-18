@@ -1,0 +1,324 @@
+{
+  "functions": [
+    {
+      "module": "c2_data_preparation_sampling",
+      "qualname": "c2_data_preparation_sampling.create_dataloader_v1",
+      "params": 7,
+      "cyclomatic": 1,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 3
+    },
+    {
+      "module": "c2_data_preparation_sampling",
+      "qualname": "c2_data_preparation_sampling.main",
+      "params": 0,
+      "cyclomatic": 1,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 0
+    },
+    {
+      "module": "c3_coding_attention_mechanismus",
+      "qualname": "c3_coding_attention_mechanismus.main",
+      "params": 0,
+      "cyclomatic": 1,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 0
+    },
+    {
+      "module": "c4_implementing_gpt_model",
+      "qualname": "c4_implementing_gpt_model.generate_text_simple",
+      "params": 4,
+      "cyclomatic": 3,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 6
+    },
+    {
+      "module": "c4_implementing_gpt_model",
+      "qualname": "c4_implementing_gpt_model.main",
+      "params": 0,
+      "cyclomatic": 1,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 0
+    },
+    {
+      "module": "c5_gpt_download",
+      "qualname": "c5_gpt_download.download_and_load_gpt2",
+      "params": 2,
+      "cyclomatic": 3,
+      "calls_internal_funcs": 2,
+      "calls_external_funcs": 10
+    },
+    {
+      "module": "c5_gpt_download",
+      "qualname": "c5_gpt_download.download_file",
+      "params": 3,
+      "cyclomatic": 14,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 18
+    },
+    {
+      "module": "c5_gpt_download",
+      "qualname": "c5_gpt_download.load_gpt2_params_from_tf_ckpt",
+      "params": 2,
+      "cyclomatic": 5,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 8
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.text_to_token_ids",
+      "params": 2,
+      "cyclomatic": 1,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 3
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.token_ids_to_text",
+      "params": 2,
+      "cyclomatic": 1,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 3
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.calc_loss_batch",
+      "params": 4,
+      "cyclomatic": 1,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 6
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.calc_loss_loader",
+      "params": 4,
+      "cyclomatic": 5,
+      "calls_internal_funcs": 1,
+      "calls_external_funcs": 7
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.train_model",
+      "params": 13,
+      "cyclomatic": 8,
+      "calls_internal_funcs": 3,
+      "calls_external_funcs": 17
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.evaluate_model",
+      "params": 5,
+      "cyclomatic": 2,
+      "calls_internal_funcs": 2,
+      "calls_external_funcs": 3
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.generate_and_print_sample",
+      "params": 4,
+      "cyclomatic": 2,
+      "calls_internal_funcs": 3,
+      "calls_external_funcs": 6
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.generate",
+      "params": 7,
+      "cyclomatic": 6,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 12
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.assign",
+      "params": 2,
+      "cyclomatic": 2,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 3
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.load_weights_into_gpt",
+      "params": 2,
+      "cyclomatic": 2,
+      "calls_internal_funcs": 21,
+      "calls_external_funcs": 4
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.main",
+      "params": 0,
+      "cyclomatic": 1,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 0
+    },
+    {
+      "module": "c7_finetuning_follow_instruction_model",
+      "qualname": "c7_finetuning_follow_instruction_model.download_and_load_file",
+      "params": 2,
+      "cyclomatic": 5,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 8
+    },
+    {
+      "module": "c7_finetuning_follow_instruction_model",
+      "qualname": "c7_finetuning_follow_instruction_model.format_input",
+      "params": 1,
+      "cyclomatic": 2,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 0
+    },
+    {
+      "module": "c7_finetuning_follow_instruction_model",
+      "qualname": "c7_finetuning_follow_instruction_model.custom_collate_fn",
+      "params": 5,
+      "cyclomatic": 5,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 15
+    },
+    {
+      "module": "c7_finetuning_follow_instruction_model",
+      "qualname": "c7_finetuning_follow_instruction_model.check_if_running",
+      "params": 1,
+      "cyclomatic": 3,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 1
+    },
+    {
+      "module": "c7_finetuning_follow_instruction_model",
+      "qualname": "c7_finetuning_follow_instruction_model.format_input",
+      "params": 1,
+      "cyclomatic": 2,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 0
+    },
+    {
+      "module": "c7_finetuning_follow_instruction_model",
+      "qualname": "c7_finetuning_follow_instruction_model.query_model",
+      "params": 3,
+      "cyclomatic": 4,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 8
+    },
+    {
+      "module": "c7_finetuning_follow_instruction_model",
+      "qualname": "c7_finetuning_follow_instruction_model.generate_model_scores",
+      "params": 3,
+      "cyclomatic": 3,
+      "calls_internal_funcs": 2,
+      "calls_external_funcs": 4
+    },
+    {
+      "module": "c7_finetuning_follow_instruction_model",
+      "qualname": "c7_finetuning_follow_instruction_model.main",
+      "params": 0,
+      "cyclomatic": 1,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 0
+    }
+  ],
+  "hotspots": [
+    {
+      "module": "c5_gpt_download",
+      "qualname": "c5_gpt_download.download_file",
+      "params": 3,
+      "cyclomatic": 14,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 18
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.train_model",
+      "params": 13,
+      "cyclomatic": 8,
+      "calls_internal_funcs": 3,
+      "calls_external_funcs": 17
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "qualname": "c5_pretraining_unlabeld_data_erweitert.generate",
+      "params": 7,
+      "cyclomatic": 6,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 12
+    },
+    {
+      "module": "c7_finetuning_follow_instruction_model",
+      "qualname": "c7_finetuning_follow_instruction_model.custom_collate_fn",
+      "params": 5,
+      "cyclomatic": 5,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 15
+    },
+    {
+      "module": "c5_gpt_download",
+      "qualname": "c5_gpt_download.load_gpt2_params_from_tf_ckpt",
+      "params": 2,
+      "cyclomatic": 5,
+      "calls_internal_funcs": 0,
+      "calls_external_funcs": 8
+    }
+  ],
+  "modules": [
+    {
+      "module": "c2_data_preparation_sampling",
+      "sloc": 33,
+      "external_imports": 6,
+      "internal_imports": 0,
+      "efferent": 0,
+      "afferent": 1,
+      "ext_per_100_sloc": 18.18,
+      "instability": 0.0
+    },
+    {
+      "module": "c3_coding_attention_mechanismus",
+      "sloc": 44,
+      "external_imports": 1,
+      "internal_imports": 0,
+      "efferent": 0,
+      "afferent": 1,
+      "ext_per_100_sloc": 2.27,
+      "instability": 0.0
+    },
+    {
+      "module": "c4_implementing_gpt_model",
+      "sloc": 108,
+      "external_imports": 2,
+      "internal_imports": 1,
+      "efferent": 1,
+      "afferent": 1,
+      "ext_per_100_sloc": 1.85,
+      "instability": 0.5
+    },
+    {
+      "module": "c5_gpt_download",
+      "sloc": 100,
+      "external_imports": 6,
+      "internal_imports": 0,
+      "efferent": 0,
+      "afferent": 2,
+      "ext_per_100_sloc": 6.0,
+      "instability": 0.0
+    },
+    {
+      "module": "c5_pretraining_unlabeld_data_erweitert",
+      "sloc": 197,
+      "external_imports": 8,
+      "internal_imports": 3,
+      "efferent": 3,
+      "afferent": 1,
+      "ext_per_100_sloc": 4.06,
+      "instability": 0.75
+    },
+    {
+      "module": "c7_finetuning_follow_instruction_model",
+      "sloc": 157,
+      "external_imports": 10,
+      "internal_imports": 2,
+      "efferent": 2,
+      "afferent": 0,
+      "ext_per_100_sloc": 6.37,
+      "instability": 1.0
+    }
+  ]
+}

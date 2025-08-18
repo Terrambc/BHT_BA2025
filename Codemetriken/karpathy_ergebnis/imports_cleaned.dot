@@ -1,0 +1,27 @@
+digraph imports {
+  rankdir=LR;
+  node [shape=box];
+  rankdir=LR;
+  node [shape=box];
+  "train_gpt2_final" [shape=box];
+  "dataclasses" [shape=ellipse, style=dashed, color=gray];
+  "train_gpt2_final" -> "dataclasses" [style=dashed, color=gray];
+  "hellaswag" [shape=ellipse, style=dashed, color=gray];
+  "train_gpt2_final" -> "hellaswag" [style=dashed, color=gray];
+  "inspect" [shape=ellipse, style=dashed, color=gray];
+  "train_gpt2_final" -> "inspect" [style=dashed, color=gray];
+  "math" [shape=ellipse, style=dashed, color=gray];
+  "train_gpt2_final" -> "math" [style=dashed, color=gray];
+  "numpy" [shape=ellipse, style=dashed, color=gray];
+  "train_gpt2_final" -> "numpy" [style=dashed, color=gray];
+  "os" [shape=ellipse, style=dashed, color=gray];
+  "train_gpt2_final" -> "os" [style=dashed, color=gray];
+  "tiktoken" [shape=ellipse, style=dashed, color=gray];
+  "train_gpt2_final" -> "tiktoken" [style=dashed, color=gray];
+  "time" [shape=ellipse, style=dashed, color=gray];
+  "train_gpt2_final" -> "time" [style=dashed, color=gray];
+  "torch" [shape=ellipse, style=dashed, color=gray];
+  "train_gpt2_final" -> "torch" [style=dashed, color=gray];
+  "transformers" [shape=ellipse, style=dashed, color=gray];
+  "train_gpt2_final" -> "transformers" [style=dashed, color=gray];
+}
