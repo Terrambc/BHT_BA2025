@@ -1,4 +1,0 @@
-module,qualname,params,cyclomatic,calls_internal_funcs,calls_external_funcs
-train_gpt2_final,train_gpt2_final.main,0,49,1,112
-train_gpt2_final,train_gpt2_final.get_most_likely_row,3,1,0,13
-train_gpt2_final,train_gpt2_final.load_tokens,1,1,0,3

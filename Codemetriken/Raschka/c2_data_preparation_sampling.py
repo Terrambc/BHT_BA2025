@@ -20,7 +20,30 @@ Kapitel 2 Themen:
 
 
 ### Klassen ###
+# Erstellen Sie einen Datensatz und einen Dataloader, die Blöcke aus dem Eingabetextdatensatz (input text dataset) extrahieren
+class GPTDatasetV1(Dataset):
+    def __init__(self, txt, tokenizer, max_length, stride):
+        self.input_ids = []
+        self.target_ids = []
 
+        # TTokenisiert den kompletten Text
+        token_ids = tokenizer.encode(txt, allowed_special={"<|endoftext|>"})
+        assert len(token_ids) > max_length, "Number of tokenized inputs must at least be equal to max_length+1"
+
+        # Verwendet ein Sliding Window, um den Text in überlappende Sequenzen mit maximaler Länge aufzuteilen.
+        for i in range(0, len(token_ids) - max_length, stride):
+            input_chunk = token_ids[i:i + max_length]
+            target_chunk = token_ids[i + 1: i + max_length + 1]
+            self.input_ids.append(torch.tensor(input_chunk))
+            self.target_ids.append(torch.tensor(target_chunk))
+
+    # return die Gesamtlänge der Zeilen im Datensatz
+    def __len__(self):
+        return len(self.input_ids)
+
+    # Return eine einzelne Zeile im Datensatz
+    def __getitem__(self, idx):
+        return self.input_ids[idx], self.target_ids[idx]
 
 
 ### Funktionen ###
