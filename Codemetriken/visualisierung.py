@@ -7,6 +7,10 @@ import numpy as np
 from pathlib import Path
 import sys
 
+'''
+Visualisierung erstellt mit Claude.ai
+'''
+
 def extract_radon_metrics(path):
     """Extrahiert Radon-Metriken für einen gegebenen Pfad"""
     try:
@@ -473,12 +477,6 @@ def create_comparison_plots(raschka_path, karpathy_path, output_dir="plots"):
     
     return df_complexity, df_maintainability
     
-
-    
-
-
-
-
     # Output-Verzeichnis erstellen
     Path(output_dir).mkdir(exist_ok=True)
     

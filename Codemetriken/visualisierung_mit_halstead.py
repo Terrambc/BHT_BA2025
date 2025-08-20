@@ -3,6 +3,10 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
+'''
+Visualisierung erstellt mit Claude.ai
+'''
+
 # Daten definieren
 karpathy_data = {
     'file': 'train_gpt2_final.py',
