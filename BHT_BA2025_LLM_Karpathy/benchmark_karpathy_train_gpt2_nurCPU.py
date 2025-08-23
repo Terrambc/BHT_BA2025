@@ -11,6 +11,11 @@ import psutil
 import random
 import tiktoken
 
+'''
+Angepasst mit Unterstützung von Claude Opus 4
+'''
+
+
 # ------------------------------------------------------
 ### Modellklassen ###
 

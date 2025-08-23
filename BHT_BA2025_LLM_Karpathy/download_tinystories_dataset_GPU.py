@@ -1,6 +1,8 @@
 """
 Gezielter Download der ersten vier TinyStories JSON-Dateien
 für wissenschaftliche Reproduzierbarkeit der Bachelorthesis
+
+Angepasst und erstellt mit Unterstützung von Claude Opus 4
 """
 
 import os
