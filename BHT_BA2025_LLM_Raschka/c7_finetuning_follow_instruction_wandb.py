@@ -30,6 +30,8 @@ Kapitel 7: Finetuning damit das Model Anweisungen befolgen kann
 - qualitative Bewertung
 - Bewertung der Antwort
 
+Ergänzungen mit Unterstützung von Claude.ai (Sonnet 4)
+
 '''
 
 ### Klassen ###
